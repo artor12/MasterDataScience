@@ -19,6 +19,8 @@ library(dplyr)
 library(ggplot2)
 library(nortest)
 library(readr)
+library(skimr)
+library(faraway)
 
 ```
 
@@ -61,18 +63,75 @@ summary (virginica)
 
 ```
 
+## Vemos los datos de forma más precisa
+
+```{r}
+
+skim (setosa)
+skim (versicolor)
+skim (virginica)
+
+```
+
+
 ## Graficamos
 
 ```{r}
 
 #Grafica para petalo
 ggplot(datos_iris, aes(Long_Petalo, Ancho_Petalo)) + 
-  geom_point(aes(color = datos_iris$Especie), size = 3)
+  geom_point(aes(color = datos_iris$Especie), size = 3) +
+  labs(colour = "Especie") +
+  labs(y = "Ancho Pétalo") +
+  labs(x = "Longitud Pétalo")
 
 #Grafica para sepalo
 
 ggplot(datos_iris, aes(Long_Sepalo, Ancho_Sepalo)) + 
-  geom_point(aes(color = datos_iris$Especie), size = 3)
+  geom_point(aes(color = datos_iris$Especie), size = 3) +
+  labs(colour = "Especie") +
+  labs(y = "Ancho Sépalo") +
+  labs(x = "Longitud Sépalo")
+
+```
+
+## Vemos los histogramas
+
+```{r}
+
+par(mfrow=c(4,3))
+hist(setosa$Long_Sepalo, main ="Hist. Long. Sepalo Setosa", ylab = "Frecuencia", xlab = NULL)
+hist(versicolor$Long_Sepalo, main ="Hist. Long. Sepalo Versicolor", ylab = NULL, xlab = "Cm")
+hist(virginica$Long_Sepalo, main ="Hist. Long. Sepalo Virginica", ylab = NULL, xlab = NULL)
+hist(setosa$Ancho_Sepalo, main ="Hist. Ancho Sepalo Setosa", ylab = "Frecuencia", xlab = NULL)
+hist(versicolor$Ancho_Sepalo, main ="Hist. Ancho Sepalo Versicolor", ylab = NULL, xlab = "Cm")
+hist(virginica$Ancho_Sepalo, main ="Hist. Ancho Sepalo Virginica", ylab = NULL, xlab = NULL)
+hist(setosa$Long_Petalo, main ="Hist. Long. Petalo Setosa", ylab = "Frecuencia", xlab = NULL)
+hist(versicolor$Long_Petalo, main ="Hist. Long. Petalo Versicolor", ylab = NULL, xlab = "Cm")
+hist(virginica$Long_Petalo, main ="Hist. Long. Petalo Virginica", ylab = NULL, xlab = NULL)
+hist(setosa$Ancho_Petalo, main ="Hist. Ancho Sepalo Setosa", ylab = "Frecuencia", xlab = NULL)
+hist(versicolor$Ancho_Petalo, main ="Hist. Ancho Sepalo Versicolor", ylab = NULL, xlab = "Cm")
+hist(virginica$Ancho_Petalo, main ="Hist. Ancho Sepalo Virginica", ylab = NULL, xlab = NULL)
+
+```
+
+## Calculamos los intervalos de confianza para la media
+
+```{r}
+
+t.test(setosa$Long_Sepalo)
+t.test(versicolor$Long_Sepalo)
+t.test(virginica$Long_Sepalo)
+t.test(setosa$Ancho_Sepalo)
+t.test(versicolor$Ancho_Sepalo)
+t.test(virginica$Ancho_Sepalo)
+t.test(setosa$Long_Petalo)
+t.test(versicolor$Long_Petalo)
+t.test(virginica$Long_Petalo)
+t.test(setosa$Ancho_Petalo)
+t.test(versicolor$Ancho_Petalo)
+t.test(virginica$Ancho_Petalo)
+
 
 ```
 
