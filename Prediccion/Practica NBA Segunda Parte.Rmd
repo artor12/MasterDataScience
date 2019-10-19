@@ -1,0 +1,166 @@
+---
+title: "Practica NBA Segunda Parte"
+author: "Armando"
+date: "14/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Requerimientos ##
+
+```{r}
+
+library(rsample)
+library(glmnet) 
+library(dplyr)  
+library(ggplot2)
+library(nortest)
+library(readr)
+library(caret)
+
+```
+
+## Importar datos ##
+
+```{r}
+
+directorio_datos <- "C:/Users/atorn/Desktop/Máster/Primer cuatrimestre/Predicción/Practicas/Practica NBA Segunda Parte/nba.csv"
+
+datos_iniciales <- read_csv(directorio_datos)
+
+```
+
+## Cambiar nombres variables ##
+
+```{r}
+
+datos_iniciales<-rename(datos_iniciales,"Jugador"="Player","Salario"="Salary",'Pais'='NBA_Country','Draft'="NBA_DraftNumber", "Edad"="Age", "Equipo"="Tm", "PartidosJugados"="G", "MinutosJugados"="MP", "EficienciaJugador"="PER", "AciertoTiro"="TS%", "IntentoTriplesPCT"="3PAr", "IntentoLibresPCT"="FTr", "RebotesOfensivosPCT"="ORB%", "RebotesDefensivosPCT"="DRB%", "TotalRebotesPCT"="TRB%", "AsistenciasPCT"="AST%", "RobosPCT"="STL%" , "TaponesPCT"="BLK%", "PerdidasBalonPCT"="TOV%", "VictoriasOfensivas"="OWS", "VictoriasDefensivas"="DWS", "PtosOfensivosVSMedia"="OBPM", "PtosDefensivosVSMedia"="DBPM", "PuntosVSMedia"="BPM", "PuntosVSMediaCompetidorDirecto"="VORP")
+
+```
+
+# Eliminamos duplicados y NA
+
+```{r}
+
+datos_iniciales <- unique(datos_iniciales)
+
+datos_iniciales <- na.omit(datos_iniciales)
+
+```
+
+## Descartamos algunas variables explicativas
+
+```{r}
+
+datos_iniciales <- select(datos_iniciales, -Jugador, -Pais, -Equipo)
+
+```
+
+
+## Creamos datos de entrenamiento y de test
+
+```{r}
+
+set.seed(123)
+nba_split <- initial_split(datos_iniciales, prop = .7, strata = "Salario")
+nba_train <- training(nba_split)
+nba_test  <- testing(nba_split)
+
+```
+
+## Preparación para Elastic Nets
+
+```{r}
+
+# Creamos las matrices de entrenamiento y test
+nba_train_x <- model.matrix(Salario ~ ., nba_train)[, -1]
+nba_train_y <- (nba_train$Salario)
+
+nba_test_x <- model.matrix(Salario ~ ., nba_test)[, -1]
+nba_test_y <- (nba_test$Salario)
+
+# Vemos la dimension de la matriz
+dim(nba_train_x)
+
+```
+
+## Elastic Nets con paquete "Caret"
+
+```{r}
+
+library(caret)
+
+train_control <- trainControl(method = "cv", number = 10)
+
+caret_mod <- train(
+  x = nba_train_x,
+  y = nba_train_y,
+  method = "glmnet",
+  preProc = c("center", "scale", "zv", "nzv"),
+  trControl = train_control,
+  tuneLength = 10
+)
+
+caret_mod
+
+```
+
+## Vemos el alfa y el lammbda resultantes
+
+```{r}
+
+caret_mod$bestTune
+
+```
+
+
+## Vemos a qué modelo le corresponde ese lambda y ese alfa:
+
+```{r}
+
+modelo_final_ridge <- glmnet(x = nba_train_x, y = nba_train_y, alpha = 1, lambda = 146358.2)
+coef(modelo_final_ridge)
+
+```
+
+#Elegimos el mejor modelo
+
+```{r}
+cv_lasso   <- cv.glmnet(nba_train_x, nba_train_y, alpha = 1)
+min(cv_lasso$cvm)
+
+```
+
+#Se hace la predicción
+
+```{r}
+
+pred <- predict(cv_lasso, s = cv_lasso$lambda.min, nba_test_x)
+preparacion_error_medio <- mean((nba_test_y - pred)^2)
+
+```
+
+#Vemos el error medio de la predicción
+
+```{r}
+
+sqrt (preparacion_error_medio)
+
+```
+
+## Vemos que el error medio de la predicción es de 5,7 millones de dolares
+
+
+
+
+
+
+
+
+
+
+
+
