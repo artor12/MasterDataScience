@@ -1,0 +1,78 @@
+---
+title: "Iris"
+author: "Armando"
+date: "14/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Preparamos librerias
+
+```{r}
+
+library(rsample)
+library(glmnet) 
+library(dplyr)  
+library(ggplot2)
+library(nortest)
+library(readr)
+
+```
+
+## Descargamos los datos
+
+```{r}
+
+library(datasets)
+data(iris)
+
+```
+
+## Cambiamos el nombre a las variables
+
+```{r}
+
+datos_iris<-rename(iris,"Long_Sepalo"="Sepal.Length","Ancho_Sepalo"="Sepal.Width",'Long_Petalo'='Petal.Length','Ancho_Petalo'="Petal.Width", "Especie"="Species")
+
+```
+
+## Separamos por la especie de flor
+
+```{r}
+
+setosa <- subset(datos_iris, Especie == "setosa")
+versicolor <- subset(datos_iris, Especie == "versicolor")
+virginica <- subset(datos_iris, Especie == "virginica")
+
+```
+
+## Hacemos summarys de cada especie para ver un poco los datos
+
+```{r}
+
+summary(setosa)
+
+summary (versicolor)
+
+summary (virginica)
+
+```
+
+## Graficamos
+
+```{r}
+
+#Grafica para petalo
+ggplot(datos_iris, aes(Long_Petalo, Ancho_Petalo)) + 
+  geom_point(aes(color = datos_iris$Especie), size = 3)
+
+#Grafica para sepalo
+
+ggplot(datos_iris, aes(Long_Sepalo, Ancho_Sepalo)) + 
+  geom_point(aes(color = datos_iris$Especie), size = 3)
+
+```
+
