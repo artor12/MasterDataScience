@@ -1,0 +1,20 @@
+---
+title: "Regresion 1"
+author: "Armando"
+date: "04/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Esta es mi práctica de regresión
+```{r}
+mData=read.csv("C:/Users/Armando/Dropbox/Universidad/CUNEF/Máster/Primer cuatrimestre/Predicción/Advertising.csv")
+vY=mData$Sales #Creo la variable dependiente
+mX=cbind(1,mData[,2:4]) #Creo la matriz de variables independientes con una columnas de unos para la constante
+head(vY) # Muestro el vector Y
+```
+
+
