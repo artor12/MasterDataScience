@@ -1,0 +1,160 @@
+---
+title: "Practica NBA"
+author: "Armando"
+date: "06/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####  Prediccion de Salarios de la NBA ####
+
+
+Preparamos librerias necesarias y cargamos la base de datos:
+
+```{r}
+
+library(readr)
+library(tidyverse)
+library(nortest)
+library (car)
+library(caret)
+
+datos_iniciales <- read_csv("C:/Users/atorn/Desktop/Máster/Primer cuatrimestre/Predicción/Practicas/Practica NBA/Practica NBA/nba.csv")
+
+```
+
+Eliminamos duplicados de la base de datos y registros con algun NA en sus variables
+
+```{r}
+
+datos_iniciales <- unique(datos_iniciales)
+
+datos_iniciales <- na.omit(datos_iniciales)
+
+```
+
+Primero vamos a cambiar los nombres a algunas variables para hacer más comodo el trabajo:
+
+```{r}
+
+datos_iniciales<-rename(datos_iniciales,"Jugador"="Player","Salario"="Salary",'Pais'='NBA_Country','Draft'="NBA_DraftNumber", "Edad"="Age", "Equipo"="Tm", "PartidosJugados"="G", "MinutosJugados"="MP", "EficienciaJugador"="PER", "AciertoTiro"="TS%", "IntentoTriplesPCT"="3PAr", "IntentoLibresPCT"="FTr", "RebotesOfensivosPCT"="ORB%", "RebotesDefensivosPCT"="DRB%", "TotalRebotesPCT"="TRB%", "AsistenciasPCT"="AST%", "RobosPCT"="STL%" , "TaponesPCT"="BLK%", "PerdidasBalonPCT"="TOV%", "VictoriasOfensivas"="OWS", "VictoriasDefensivas"="DWS", "PtosOfensivosVSMedia"="OBPM", "PtosDefensivosVSMedia"="DBPM", "PuntosVSMedia"="BPM", "PuntosVSMediaCompetidorDirecto"="VORP")
+
+```
+
+Comenzamos haciendo una regresion lineal con las variables más importantes:
+Descarto la variable Pais ya que puede desviar y condicionar mucho la estimación. Por ejemplo, si en la NBA ha jugado un único jugador nacido en Angola (por ejemplo) y era muy bueno, esto condicionaría el beta del país en una predicción si el jugador a predecir fuese angoleño. Es decir, se presupondría que el jugador angoleño a predecir sería muy bueno (porque es el histórico que hay de Angola) y se le pagaría más, lo cual no tiene sentido.Un jugador no es bueno o malo por su lugar de nacimiento.
+Descarto también la variable Equipo. Pienso que el salario se ofrece en función de lo que cada jugador consiga a nivel individual. Las estadísticas individuales influyen más en el salario que el equipo al que vayan, no es lo mismo un jugador con estadísticas de triple doble por temporada que uno de 4.1, 2 y 6 ( puntos, rebotes y asistencias) de media.Además, modelizando incorporando esta variable, se ve que no es significativa.
+
+```{r}
+
+modelo <- lm(Salario~Draft+Edad+PartidosJugados+MinutosJugados+EficienciaJugador+AciertoTiro+IntentoTriplesPCT+IntentoLibresPCT+RebotesOfensivosPCT+RebotesDefensivosPCT+TotalRebotesPCT+AsistenciasPCT+RobosPCT+TaponesPCT+PerdidasBalonPCT+VictoriasOfensivas+VictoriasDefensivas+PtosOfensivosVSMedia+PtosDefensivosVSMedia+PuntosVSMedia+PuntosVSMediaCompetidorDirecto,data=datos_iniciales)
+summary(modelo)
+
+```
+
+Vemos si hay algun valor atipico o observacion anomala influente
+
+```{r}
+
+outlierTest(modelo)
+
+avPlots(modelo, ask=FALSE, id.method="identify")
+
+influencePlot(modelo, id.method="identify", main="Influence Plot", 
+              sub="Circle size is proportial to Cook's Distance" )
+
+```
+
+Seleccionamos las variables con el metodo Backward Stepwise:
+
+```{r}
+
+library(MASS)
+
+stepAIC(modelo, direction="backward")
+
+```
+
+Con las variables que nos indica, creamos un nuevo modelo, el predefinitivo, que nos ayudará más tarde con la predicción:
+
+```{r}
+
+modelo_predefinitivo <- lm(Salario ~ Draft + Edad + PartidosJugados + MinutosJugados + 
+    RebotesOfensivosPCT + TotalRebotesPCT + VictoriasOfensivas + 
+    PuntosVSMediaCompetidorDirecto, datos_iniciales)
+
+summary (modelo_predefinitivo)
+
+```
+
+Volvemos a hacer una prueba de multicolinealidad para descartar algunas variables interrelacionadas:
+
+```{r}
+
+vif(modelo_predefinitivo)
+
+sqrt(vif(modelo_predefinitivo)) > 2 #Cuando es superior a dos vemos que hay problemas de multicolinealidad
+
+```
+
+Quitamos las variables partidos jugados y rebotes ofensivos, ya que se relacionan (logicamente) con los rebotes totales y los minutos jugados, que son variables más precisas.
+
+```{r}
+
+modelo_definitivo <- lm(Salario ~ Draft + Edad + MinutosJugados + TotalRebotesPCT + VictoriasOfensivas + PuntosVSMediaCompetidorDirecto, datos_iniciales)
+
+summary (modelo_definitivo)
+
+
+```
+
+Graficamos ahora el qqplot y vemos que salvo la zona de la derecha, sigue una distribucion normal
+
+```{r}
+
+library(car)
+qqPlot(modelo_definitivo, labels=row.names(datos_iniciales), id.method="identify",
+       simulate=TRUE, main="Q-Q Plot")
+
+```
+
+Hacemos ahora una validación global de los datos de la regresion:
+
+```{r}
+
+library(gvlma)
+
+validacion_global <- gvlma(modelo_definitivo) 
+summary(validacion_global)
+
+gvlma(x = modelo_definitivo) #Ejecutar en consola por separado para que aparezcan los resultados de rechazo o no rechazo de las principales hipotesis estadísticas
+
+```
+
+Procedemos a hacer k-Cross Validation. Vemos que el error medio es de algo más de 3M
+
+```{r}
+
+# Defino datos de entrenamiento
+set.seed(123) 
+train.control <- trainControl(method = "cv", number = 10)
+# Preparamos el modelo
+model_cv <- train(Salario ~ Draft + Edad + MinutosJugados + TotalRebotesPCT + VictoriasOfensivas + PuntosVSMediaCompetidorDirecto, data = datos_iniciales, method = "lm",
+               trControl = train.control)
+# Vemos los resultados
+print(model_cv)
+
+```
+
+
+Hacemos una predicción (son los datos de nuestro jugador más carismático, Pau Gasol):
+
+```{r}
+
+predict.lm(modelo_definitivo,data.frame(Draft=3,Edad=37, MinutosJugados=1753, TotalRebotesPCT=19, VictoriasOfensivas=2.6, PuntosVSMediaCompetidorDirecto=2.3))
+
+```
+
