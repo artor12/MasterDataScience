@@ -1,0 +1,274 @@
+---
+title: "GAM Bikes"
+author: "Armando"
+date: "23/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Requerimientos ##
+
+```{r}
+
+library(here)
+library(readr)
+library(tidyverse)
+library(skimr) 
+library(magrittr)
+library(corrplot)
+library(ggcorrplot) 
+library(PerformanceAnalytics)
+library(leaps)
+library(caret) 
+library(bestglm)
+library(glmnet)
+library(knitr)
+library(ISLR)
+library(gam)
+library(fBasics)
+library(nortest)
+library(MASS)
+library(rsample)
+
+```
+
+## Importar datos ##
+
+```{r}
+
+day <-  read.csv(here("day.csv"))
+
+```
+
+# Eliminamos duplicados y NA
+
+```{r}
+
+day <- unique(day)
+
+day <- na.omit(day)
+
+```
+
+## Preparamos el descarte de algunas variables
+
+```{r}
+
+#Vamos a quitar usuarios casuales y registrados porque con saber los usuarios totales nos es suficiente (ya que son la suma de casuales y registrados)
+
+#Por el principio de Parsimonia (preferencia por teorias más simples frente a complejas), eliminamos también la variable "festivo", ya que queda recogida también dentro de la variable "laborable"
+
+#Quitamos también la variable fecha, ya que cada observación tiene un valor, y no aporta información significante. Por otro lado, mantengo sin embargo las variables mes y año porque quizá son significantes
+
+descarte <- c("dteday","instant", "casual", "registered", "holiday")
+
+```
+
+## Vemos las correlaciones entre variables
+
+```{r}
+
+ggcorrplot(cor(day %>% 
+               select_at(vars(-descarte)), 
+            use = "complete.obs"),
+            hc.order = TRUE,
+            type = "lower",  lab = TRUE)
+
+```
+
+##Elegimos el mejor modelo
+
+```{r}
+
+day1 <- day %>% select_at(vars(-descarte)) #elimina las tres variables factor
+
+
+model_select <- regsubsets(cnt~. , data =day1, method = "seqrep",nvmax=24) #si no ponemos 24, solo coge 8.
+
+model_select_summary <- summary(model_select)
+
+data.frame(
+  Adj.R2 = (model_select_summary$adjr2),
+  CP = (model_select_summary$cp),
+  BIC = (model_select_summary$bic)
+)
+view(data.frame(
+  Adj.R2 = (model_select_summary$adjr2),
+  CP = (model_select_summary$cp),
+  BIC = (model_select_summary$bic)
+))
+
+```
+
+
+```{r}
+
+plot(model_select, scale = "adjr2", main = "Adjusted R^2") #los cuadrados me dicen que en ese modelo que variables estam, las variables que mejor se ajustan al modelo
+
+data.frame(
+  Adj.R2 = which.max(model_select_summary$adjr2),
+  CP = which.min(model_select_summary$cp),
+  BIC = which.min(model_select_summary$bic)
+)
+
+```
+
+```{r}
+
+data.frame(
+  Adj.R2 = which.max(model_select_summary$adjr2),
+  CP = which.min(model_select_summary$cp),
+  BIC = which.min(model_select_summary$bic)
+)
+
+```
+
+## Hacemos el modelo GAM
+
+```{r}
+
+dftemp<-smooth.spline(day$temp, day$cnt, cv=TRUE)
+dfatemp<-smooth.spline(day$atemp, day$cnt, cv=TRUE)
+dfhum<-smooth.spline(day$hum, day$cnt, cv=TRUE)
+dfhum2<-smooth.spline(day$hum, day$cnt, df= 16)
+dfwindspeed<-smooth.spline(day$windspeed, day$cnt, cv=TRUE)
+
+
+dftemp$df
+dfatemp$df
+dfhum$df
+dfwindspeed$df
+
+
+```
+
+#Graficamos los grados de libertad a modo de ejemplo
+
+```{r}
+
+plot(day$hum, day$cnt, xlim=day$humLims, col='gray')
+title('Smoothing Spline')
+dfhum<- smooth.spline(day$hum, day$cnt, cv=TRUE)
+dfhum2<-smooth.spline(day$hum, day$cnt, df=16)
+lines(dfhum, col='red', lwd=2)
+lines(dfhum2, col='blue', lwd=1)
+legend('topright', legend=c('4.548 DF', '16 DF'),
+       col=c('red','blue'), lty=1, lwd=2, cex=0.8)
+
+```
+
+## Transformamos las variables categoricas en factor
+
+```{r}
+
+day$weekday <- as.factor(day$weekday)
+day$weathersit<- as.factor(day$weathersit)
+day$season <- as.factor(day$season)
+
+
+skim(day)
+
+```
+
+## Vemos otra vez los grados de libertad para introducirlos en el modelo
+
+```{r}
+
+dftemp$df
+dfatemp$df
+dfhum$df
+dfwindspeed$df
+
+```
+
+## Haces el modelo GAM
+
+```{r}
+
+gam1 <- gam(cnt~s(temp, df =9.103704) + s(atemp, df=8.805497) + s(hum, df=4.548876) + s(windspeed, df=6.007664) + weekday + workingday + weathersit + season + mnth + yr,data=day)
+
+plot(gam1, se=TRUE, col='red')
+
+```
+```{r}
+
+summary (gam1)
+
+```
+
+## Hacemos un par de modelos más para poder comparar, tomando distintas variables
+
+```{r}
+
+#Quitamos la variable mes
+gam2 <- gam(cnt~s(temp, df =9.103704) + s(atemp, df=8.805497) + s(hum, df=4.548876) + s(windspeed, df=6.007664) + weekday + workingday + weathersit + season + yr,data=day)
+
+plot(gam1, se=TRUE, col='red')
+
+summary(gam2)
+
+```
+
+```{r}
+
+#Quitamos ahora además la variable año
+gam3 <- gam(cnt~s(temp, df =9.103704) + s(atemp, df=8.805497) + s(hum, df=4.548876) + s(windspeed, df=6.007664) + weekday + workingday + weathersit + season,data=day)
+
+plot(gam1, se=TRUE, col='red')
+
+summary(gam3)
+
+```
+
+## Ahora hacemos la comparación ANNOVA
+
+```{r}
+
+anova(gam1, gam2, gam3, test='F')
+
+#Vemos que el mejor modelo es el primero
+
+```
+
+## Comenzamos el Cross Validation. Creamos los datos de entrenamiento y test
+
+```{r}
+
+set.seed(123)
+day_split <- initial_split(day, prop = 0.7, strata = "cnt")
+day_train <- training(day_split)
+day_test  <- testing(day_split)
+
+```
+
+## Predecimos el mejor modelo con la muestra Train
+
+```{r}
+
+gam_train <- gam(cnt~s(temp, df =9.103704) + s(atemp, df=8.805497) + s(hum, df=4.548876) + s(windspeed, df=6.007664) + weekday + workingday + weathersit + season + mnth + yr,data=day_train)
+
+plot(gam_train, se=TRUE, col='red')
+
+```
+
+```{r}
+
+summary(gam_train)
+
+```
+
+
+## Vemos el error
+```{r}
+
+pred.modelo.gam <-  predict(gam1, day_test)
+test.error.gam <- mean((pred.modelo.gam - day_test$cnt)^2)
+
+sqrt (test.error.gam)
+```
+
+
+## Vemos que el error medio de la predicción es de 716 usuarios
