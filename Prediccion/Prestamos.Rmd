@@ -1,0 +1,232 @@
+---
+title: "Prestamos"
+author: "Armando"
+date: "6/11/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cargamos librerías
+
+```{r}
+
+library(readr)
+library(here)
+library(knitr)
+library(rmarkdown)
+library(faraway)
+library(ISLR)
+library(ggplot2)
+library(ggfortify)
+library(boot)
+library(ROCR)
+library(skimr)
+library(dummies)
+library(caret)
+library(verification)
+
+```
+
+## Cargamos los datos
+
+```{r}
+
+loan <- read_csv(here("loan.csv"),
+    col_types = cols(int_rate = col_number()))
+
+```
+
+## Seleccionamos variables
+
+```{r}
+
+#Seleccionamos las variables más representativas en función de la lectura propuesta.
+loan2 <- loan[,c("int_rate", "grade", "home_ownership", "revol_util", "loan_amnt", "dti","annual_inc", "loan_status")]
+
+```
+
+## Análisis descriptivo
+
+```{r}
+
+skim(loan2)
+
+```
+
+```{r}
+
+#Seleccionamos unicamente charged off y fully paid ya que son los únicos clientes que nos interesan.
+variables_seleccionadas <- loan2[(loan2$loan_status == "Charged Off" | loan2$loan_status == "Fully Paid"),]
+
+```
+
+## Limpieza de datos
+
+```{r}
+
+variables_seleccionadas <- na.omit(variables_seleccionadas)
+
+```
+
+## Transformamos variables character a numericas
+
+```{r}
+
+#Cambiamos grade, home_ownership y loan_status. 
+#Variable GRADE
+dummies1 <- cbind(variables_seleccionadas, dummy(variables_seleccionadas$grade, sep = "_"))
+
+# Variable Home_ownership 
+dummies2 <- cbind(dummies1, dummy(variables_seleccionadas$home_ownership, sep = "_"))
+
+#Variable loan_status
+dummies3 <- cbind(dummies2, dummy(variables_seleccionadas$loan_status, sep = "_"))
+
+View(dummies3)
+
+#cambiamos revol_util que está en porcentaje dividiendolo entre 100 para que sea numérica también.
+dummies3[,"revol_util"] <- as.numeric(sub("%","", dummies3$revol_util, fixed = TRUE))/100
+loanfinal <- dummies3
+
+dummies3[,"int_rate"] <- as.numeric(sub("%","", dummies3$int_rate, fixed = TRUE))/100
+loanfinal <- dummies3
+
+```
+
+# Train y Test
+
+```{r}
+set.seed(06112019)
+
+n = nrow(loanfinal)
+id_train <- sample(1:n, 0.80*n) 
+loanfinal.train <- loanfinal[id_train,] 
+loanfinal.test <- loanfinal[-id_train,]
+
+```
+
+#Aplicacion del modelo GLM 
+
+
+```{r}
+
+loan_glm <- glm(`dummies2_Charged Off`~. -home_ownership - grade - loan_status - `dummies2_Fully Paid`, data = loanfinal.train, family = "binomial")
+
+summary(loan_glm)
+
+```
+
+
+#Hacemos uan predicción
+
+```{r}
+
+predict(loan_glm, newdata = loanfinal, type = "response")
+
+```
+
+# Hacemos una segunda predicción quitando las variables no relevantes
+
+```{r}
+
+loan_glm1 <- glm(`dummies2_Charged Off`~. -home_ownership - grade - loan_status - `dummies2_Fully Paid` - variables_seleccionadas_A  - variables_seleccionadas_F - variables_seleccionadas_G - dummies1_ANY - dummies1_NONE -dummies1_OTHER -dummies1_RENT  , data = loanfinal.train, family = "binomial")
+
+summary(loan_glm1)
+
+```
+
+# Hacemos una comparación entre los dos modelos usando el método AIC 
+
+```{r}
+
+AIC(loan_glm)
+AIC(loan_glm1)
+
+```
+
+
+# Vemos un histograma de las probabilidades de pago (siendo 0 que paga, y 1 que no paga)
+
+```{r}
+
+hist(predict(loan_glm1, type = "response"))
+
+```
+
+
+# Vamos a calcular el cut of óptimo (con un bucle de 100 pruebas)
+
+```{r}
+
+prob.loan_glm1.insample <- predict(loan_glm1,type="response") #Hacemos la predicción del segundo modelo
+
+
+searchgrid<-seq(0.001, 1, 0.01)
+result<-cbind(searchgrid, NA)
+cost1 <- function(r, pi){
+  peso1 = 3 #peso dar crédito y default
+  peso2 = 1 #peso no dar crédito y pagan
+  c1 = (r==1)&(pi<pcut)
+  c0 = (r==0)&(pi>pcut)
+  return(mean(peso1*c1+peso2*c0))
+}
+for(i in 1:length(searchgrid))
+{
+  pcut <- result[i,1]
+  result[i,2] <- cost1(loanfinal.train$`dummies2_Charged Off`, prob.loan_glm1.insample)
+}
+plot(result, ylab="Cost")
+
+## Con esto establecemos el cut of que minimiza el coste de dar o no dar un crédito. Lo vemos gráficamente
+
+```
+
+```{r}
+
+# Ahora calculamos el punto mínimo que acabamos de ver gráficamente. Este es nuestro cut of (punto a partir del cual consideramos que un préstamo va a pagar o no va a pagar)
+
+result[which.min(result[,2]),][1]
+
+```
+
+# Ahora calculamos cúantos impagados hay según nuestro cut of
+
+```{r}
+
+predicted.loan_glm1.insample <- as.numeric(prob.loan_glm1.insample > result[which.min(result[,2]),1])
+
+table(as.numeric(prob.loan_glm1.insample > result[which.min(result[,2]),1]))
+
+# Calculamos la matriz de confusión
+
+conf <- table(loanfinal.train$`dummies2_Charged Off`,  predicted.loan_glm1.insample, dnn=c("Truth","Predicted"))
+
+accuracy <- (conf[1,1]+conf[2,2])/sum(conf)
+
+accuracy
+
+```
+
+# Matriz con el test
+
+```{r}
+
+prob.modelo2.outsample <- predict(loan_glm1,loanfinal.test,type="response")
+predicted.modelo2.outsample <- prob.modelo2.outsample> 0.241
+predicted.modelo2.outsample <- as.numeric(predicted.modelo2.outsample)
+table(loanfinal.test$loan_status, predicted.modelo2.outsample, dnn=c("Truth","Predicted"))
+
+```
+
+# Curva ROC
+
+```{r}
+
+roc.plot(loanfinal.test$`dummies2_Charged Off`, prob.modelo2.outsample)
+
+```
+
+
