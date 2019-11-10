@@ -1,0 +1,357 @@
+---
+title: "Tarea 1"
+author: "Armando Torner"
+date: "10/11/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cargamos librerías
+
+```{r}
+
+library(here)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(party)
+library(readxl)
+library(fastDummies)
+library(ggplot2)
+library(MASS)
+library(car)
+library(skimr)
+library(rsample)
+library(glmnet) 
+library(dplyr)  
+library(nortest)
+library(readr)
+library(caret)
+
+```
+
+## Cargamos datos
+
+```{r}
+
+datos <- read_excel(here("Datos/Datos tarea1.xlsx"))
+
+```
+
+## Creamos una semilla
+
+```{r}
+
+set.seed(1234)
+
+```
+
+## Visualizamos los datos
+
+```{r}
+
+skim(datos)
+View(datos)
+
+```
+
+## Eliminamos NA´s
+
+```{r}
+
+datos <- na.omit(datos)
+
+```
+
+Vemos que no hay ningún NA
+
+## Cambiamos nombres a las variables
+
+```{r}
+
+datos <- rename (datos,"nivel_riesgo"="TIPO", "ingresos"="I", "edad"="Edad", "sexo"="Sexo", "estado_civil"="EC", "numero_hijos"="H", "patrimonio"="P", "endeudamiento_sobre_patrimonio_porc"="R", "aversion_riesgo"="A")
+View(datos)
+
+```
+
+Esto lo hacemos para que sea más facil trabajar con el dataset y la comprensión del mismo
+
+## Análisis descriptivo variables categóricas
+
+```{r}
+
+#Sexo
+table(datos$sexo)
+barplot(table(datos$sexo), main = "Sexo")
+
+#Estado civil
+table(datos$estado_civil)
+barplot(table(datos$estado_civil), main = "Estado civil")
+
+#Aversion al riesgo
+table(datos$aversion_riesgo)
+barplot(table(datos$aversion_riesgo), main = "Aversión al riesgo")
+
+#Nivel de riesgo
+table(datos$nivel_riesgo)
+barplot(table(datos$nivel_riesgo), main = "Nivel de riesgo")
+
+```
+
+## Descarte de variables categóricas
+
+```{r}
+
+datos_numericos <- select(datos, -sexo, -estado_civil, -aversion_riesgo)
+View(datos_numericos)
+
+```
+
+Quitamos las variables categóricas para centrarnos en las numéricas
+
+## Análisis descriptivo de las variables numéricas
+
+En primer lugar, vamos a crear tres datasets en función del nivel de riesgo
+
+```{r}
+
+riesgoAlto <- subset (datos_numericos, datos_numericos$nivel_riesgo == "Alto riesgo") 
+riesgoAlto <- select (riesgoAlto, -c("nivel_riesgo"))
+summary (riesgoAlto)
+
+```
+
+```{r}
+
+riesgoMedio <- subset (datos_numericos, datos_numericos$nivel_riesgo == "Riesgo medio") 
+riesgoMedio <- select (riesgoMedio, -c("nivel_riesgo"))
+summary (riesgoMedio)
+
+```
+
+```{r}
+
+riesgoBajo <- subset (datos_numericos, datos_numericos$nivel_riesgo == "Bajo riesgo") 
+riesgoBajo <- select (riesgoBajo, -c("nivel_riesgo"))
+summary (riesgoBajo)
+
+```
+
+Ahora comprobamos si la distribución de las variables numéricas sigue una distribución normal.
+Para visualizarlo gráficamente representamos los histogramas de las variables numéricas con las curvas de densidad incluidas. Sobre estos datos añadimos la función de distribución normal.
+
+```{r}
+hist(datos_numericos$ingresos, breaks = 15, 
+     prob = TRUE, xlab = "INGRESO ANUAL", main = "Histograma y Curva de densidad") 
+     curve(dnorm(x, mean = mean(datos_numericos$ingresos), sd = sqrt(var(datos_numericos$ingresos))),
+           add = TRUE, col = 'blue')
+```
+
+```{r}
+hist(datos_numericos$edad,  
+     prob = TRUE, xlab = "EDAD", main = "Histograma y Curva de densidad") 
+     curve(dnorm(x, mean = mean(datos_numericos$edad), sd = sqrt(var(datos_numericos$edad))),
+           add = TRUE, col = 'blue')
+```
+
+```{r}
+
+hist(datos_numericos$numero_hijos, breaks = 15, 
+     prob = TRUE, xlab = "Nº DE HIJOS", main = "Histograma y Curva de densidad") 
+     curve(dnorm(x, mean = mean(datos_numericos$numero_hijos), sd = sqrt(var(datos_numericos$numero_hijos))),
+           add = TRUE, col = 'blue')
+```
+
+```{r}
+hist(datos_numericos$patrimonio, breaks = 15, 
+     prob = TRUE, xlab = "PATRIMONIO", main = "Histograma y Curva de densidad") 
+     curve(dnorm(x, mean = mean(datos_numericos$patrimonio), sd = sqrt(var(datos_numericos$patrimonio))),
+           add = TRUE, col = 'blue')
+```
+
+```{r}
+hist(datos_numericos$endeudamiento_sobre_patrimonio_porc, breaks = 15, 
+     prob = TRUE, xlab = "RATIO DE ENDEUDAMIENTO SOBRE PATRIMONIO (%)", main = "Histograma y Curva de densidad") 
+     curve(dnorm(x, mean = mean(datos_numericos$endeudamiento_sobre_patrimonio_porc), sd = sqrt(var(datos_numericos$endeudamiento_sobre_patrimonio_porc))),
+           add = TRUE, col = 'blue')
+```
+
+Vemos que a excepción del número de hijos, el resto de variables tienen curvas de densidad que se ajustan mucho a una distribución normal. Vamos a confirmar que siguen una distribución normal con el test de Shapiro
+
+```{r}
+
+shapiro.test(datos_numericos$ingresos)
+shapiro.test(datos_numericos$edad)
+shapiro.test(datos_numericos$numero_hijos)
+shapiro.test(datos_numericos$patrimonio)
+shapiro.test(datos_numericos$endeudamiento_sobre_patrimonio_porc)
+
+```
+
+Vemos que para un nivel de significación del 5% lo único que sigue una distribución normal es el ratio de endeudamiento sobre el patrimonio.
+
+## Análisis discriminante
+
+El análisis discriminante es el método por el cual se asignan los individuos de la muestra, en función de los valores de las variables explicativas, a una de las categorías de la variable explicada. En este estudio analizaremos el Ánálisis Discriminante Lineal (LDA) y el Análisis Discriminante Cuadrático (QDA)
+
+En términos generales, LDA tiende a conseguir mejores clasificaciones que QDA cuando hay pocas observaciones con las que entrenar al modelo. Sin embargo, si se dispone de una gran cantidad de observaciones el QDA es más adecuado.
+
+# LDA
+
+-LDA: Estima la probabilidad de que una observación, dado un determinado valor de los predictores, pertenezca a cada una de los grupos de la variable cualitativa. El objetivo del LDA es generar combinaciones lineales de las variables originales que ofrezcan la mejor separación posible entre los 3 grupos de riesgo (alto, medio y bajo). El número máximo de funciones discriminantes válidas será el mínimo entre el número de grupos menos uno y el número de variables.
+
+```{r}
+
+datosLda <- lda(nivel_riesgo~., data = datos_numericos)
+datosLda
+
+```
+
+El siguiente paso es calcular para cada grupo de riesgo un vector de predicción con dos dimensiones.
+
+```{r}
+
+datosLdaValores <- predict(datosLda)
+datosLdaValores
+
+```
+
+Obtenemos la primera función discriminante donde observamos que la función presenta errores con el grupo de riesgo medio pero diferencia bien entre el grupo de riesgo alto y el bajo.
+
+```{r}
+
+ldahist(data = datosLdaValores$x[,1], g = datos_numericos$nivel_riesgo)
+
+```
+
+La segunda función discriminante comete errores entre los 3 grupos de riesgo.
+
+```{r}
+
+ldahist(data = datosLdaValores$x[,2], g = datos_numericos$nivel_riesgo)
+
+```
+
+Una vez he obtenido las funcioens discriminantes y he analizado su funcionalidad realizo la representación gráfica de scatterplots de las funciones discriminantes:
+
+```{r}
+
+plot(datosLdaValores$x[,1],datosLdaValores$x[,2]) 
+text(datosLdaValores$x[,1],datosLdaValores$x[,2], datos_numericos$nivel_riesgo, cex = 0.7, pos = 4, col = "green")
+
+```
+
+Para hallar la precisión del modelo dibujo la matriz de confusión. Uno de los beneficios de las matrices de confusión es que facilitan ver si el sistema está confundiendo dos grupos.
+
+```{r}
+
+table(predict(datosLda)$class, datos_numericos$nivel_riesgo, dnn = c("Actual", "Predicted"))
+
+```
+
+# QDA
+
+-QDA: Produce límites cuadráticos y por lo tanto curvos, lo que aporta mayor flexibilidad permitiendo ajustarse mejor a los datos. Realizamos el mismo proceso que en LDA; primero comprobamos los valores de las cargas, después calculamos para cada grupo un vector de predicción y por último hallamos la matriz de confusión
+
+```{r}
+
+datosQda <- qda(nivel_riesgo~., data = datos_numericos)
+datosQda
+
+```
+
+```{r}
+
+datosQdaValores <- predict(datosQda)
+
+```
+
+```{r}
+
+table(datosQdaValores$class, datos_numericos$nivel_riesgo, dnn = c("Actual", "Predicted"))
+
+```
+
+## Árbol de decisión
+
+Se va a aplicar un árbol de clasificación justificando la selección de variables predictoras, utilizando una muestra del 80% para la estimación y del 20 % para la muestra de validación.
+
+Creamos una muestra aleatoria de train y test
+
+```{r}
+
+train <- sample(nrow(datos_numericos), 0.8*nrow(datos_numericos)) 
+
+datosTrain <- datos_numericos[train,] 
+
+datosValidacion <- datos_numericos[-train,] 
+
+```
+
+Realizamos la estimación del árbol de inferencia
+
+```{r}
+
+arbolDecision <- rpart(nivel_riesgo ~ ., data = datosTrain, method = "class",
+               parms = list(split = "information"))
+
+summary(arbolDecision)
+
+```
+
+```{r}
+
+print(arbolDecision)
+
+```
+
+Ahora, obtengo la tabla de complejidad paramétrica y realizo un gráfico de la curva para ver mejor que grado de complejidad escoger.
+
+```{r}
+
+arbolDecision$cptable
+
+```
+
+```{r}
+
+plotcp(arbolDecision)
+
+```
+
+Analizando los resultados, deducimos que se han de seleccionar 3 grados de complejidad. 
+
+Con el tercer parámetro de complejidad, realizamos el podado del árbol y lo representamos gráficamente: 
+
+```{r}
+
+arbolPodado <- prune(arbolDecision, cp = 0.04878049)
+
+```
+
+```{r}
+
+plot(as.party(arbolPodado))
+
+```
+
+ARBOL DE INFERENCIA
+
+```{r}
+
+fitCtree <- ctree(as.factor(nivel_riesgo)~., data = datosTrain)
+
+plot(fitCtree, main = "Conditional Inference Tree")
+
+ctreePred <- predict(fitCtree, datosValidacion, type = "response")
+
+ctreePerf <- table(datosValidacion$nivel_riesgo, ctreePred,
+                    dnn = c("Actual", "Predicted"))
+
+ctreePerf
+
+```
+
