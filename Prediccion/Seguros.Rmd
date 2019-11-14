@@ -1,0 +1,222 @@
+---
+title: "Seguros"
+author: "Armando Torner"
+date: "11/11/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cargamos librerías
+
+```{r}
+
+require(forecast)
+require(xts)
+require(ggplot2)
+library(ggfortify)
+library(here)
+library(dplyr)
+library(readr)
+library(robustfa)
+
+```
+
+## Cargamos datos
+
+```{r}
+
+primas_mapfre <- read.csv (here ("Primas_mapfre.csv"), sep = ";", dec = ",")
+
+```
+
+## Sumamos las primas
+
+Esto se hace de cara a realizar una posterior predicción
+
+```{r}
+
+primas_mapfre$Suma <- (primas_mapfre$Primas_vida + primas_mapfre$Primas_no_vida)
+
+```
+
+## Análisis exploratorio 
+
+```{r}
+
+primas_ts <- ts(primas_mapfre$Suma, start = c(2008,1), frequency = 4)
+primas_desc <- decompose(primas_ts)
+plot(primas_desc, col = "blue")
+
+```
+
+Observamos que hay tendencia creciente positiva y que existe estacionalidad.
+
+## Modificación de datos
+
+```{r}
+
+#Create a XTS object
+#Convert data to XTS
+xPrimas = xts(primas_mapfre$Suma, order.by = as.Date(primas_mapfre$Fecha,"%m/%d/%Y"),frequency=4)
+
+```
+
+```{r}
+
+#Generate quarterly data
+xPrimas = to.quarterly(xPrimas)
+
+```
+
+
+```{r}
+
+#Transform to zoo data (forecast package)
+zPrimas = as.zoo(xPrimas$xPrimas.Close)
+names(zPrimas)="Primas"
+
+```
+
+
+```{r}
+
+##Plot Serie
+autoplot(zPrimas)+ggtitle("Primas trimestrales")+xlab("Trimestres")+ylab("Primas")
+
+#Seasonal Plot
+ggfreqplot(as.ts(zPrimas),freq=4,nrow=1,facet.labeller=c("1T","2T","3T","4T"))+ggtitle("Primas Trimestrales")
+
+```
+
+Ahora eliminamos los datos de 2017 para realizar posteriormente mediante ETS la prediccion de 2017 y 2018
+
+```{r}
+
+#Select number of observation to compare forecast
+cOmit=4
+
+#Data Size
+nObs=length(zPrimas)
+
+#sub_sample
+#oVentas=zVentas[1:(nObs-cOmit),]
+oPrimas <- window(zPrimas,start=index(zPrimas[1]),end=index(zPrimas[nObs-cOmit]))
+View(oPrimas)
+
+```
+
+# Modelo ETS 
+
+```{r}
+
+## Select automatic ETS
+etsfit<-ets(oPrimas,damped=TRUE)
+#forecast model
+fprimas.ets=forecast(etsfit)
+#Results
+summary(fprimas.ets)
+
+```
+
+Obtenemos como resultado la predicción "Point Forecast", así como los valores en los intervalos de confianza al 80% y al 95%
+
+```{r}
+
+#Plot
+plot(fprimas.ets)
+lines(window(zPrimas),type="o")
+
+```
+
+Vemos las correspondencias del modelo ETS:
+
+Error = A: Tendencia lineal
+Tendencia = Ad: Tendencia lineal amortiguada
+Estacionalidad = A: Tendencia lineal 
+
+```{r}
+
+#Actual and Forecast
+matrix(c(fprimas.ets$mean[1:cOmit],zPrimas[(nObs-cOmit+1):nObs]),ncol=2)
+
+```
+
+Obtenemos en la primera columna la media de los valores que se han obtenido con el ETS, y en 
+la segunda columna los valores de la predición que selecciona de manera automática los valores 
+para realizar la predicción.  
+
+#MODELO ARIMA 
+
+Como vemos, la serie temporal no es estacionaria, por lo que no es constante en varianza y media. 
+Debemos realizar una transformación logarítmica de la varianza y, si no apreciamos estacionariedad aun asi, procedemos a realizar el logaritmo de la tasa de variación. 
+
+```{r}
+
+#Log transformation
+
+zPrimas_log = log(zPrimas)
+df_newl <- data.frame(value = as.vector(zPrimas_log),
+                     time = time(zPrimas_log))
+ggplot(df_newl)+geom_point(aes(x=time,y=value))+geom_line(aes(x=time,y=value))+ylab("Primas")+ggtitle("Modelo ARIMA")+xlab("Años")
+
+```
+
+```{r}
+
+#Estacionaria en varianza 
+ggtsdisplay(zPrimas_log) 
+
+#Los ACF y PACF son los gráficos que muestran los residuos. 
+
+#Estacionaria en media 
+ggtsdisplay(diff(zPrimas_log)) 
+
+```
+
+# Modelo ARIMA 
+
+```{r}
+
+fit1=auto.arima(oPrimas,lambda=0)
+summary(fit1)
+
+#residual analysis
+ggtsdisplay(fit1$residuals)
+
+#El arima lo que nos está generando es el modelo sin los residuos (en ACF y PACF) de manera automática que estaba obteniendo al tranformar en logaritmo y al realizar la diferencia para hacer estacionaria la serie.
+
+```
+
+La hipotesis nula de este test es que las autocorrelaciones de hasta un desfase k son iguales a 0. Es decir, que los valores de los datos son aleatorios e independientes hasta un cierto número de desfases. En nuestro caso son 12 desfases porque hay 12 retardos.  
+
+```{r}
+
+#box-Ljung Test
+Box.test(fit1$residuals,lag=6, fitdf=3, type="Lj")
+Box.test(fit1$residuals,lag=8, fitdf=3, type="Lj")
+Box.test(fit1$residuals,lag=12, fitdf=3, type="Lj")
+
+fprimas.arima=forecast(fit1)
+
+#Se acepta la hipotesis nula porque nuestro nivel de significación es superior a 0.05. Es decir, a un nivel de confianza de 95% se acepta la hipótesis nula. 
+
+```
+
+#Representación gráfica del modelo ARIMA
+
+```{r}
+
+df_new <- data.frame(value = as.vector(zPrimas),
+                     time = time(zPrimas))
+
+ggplot(df_new)+geom_point(aes(x=time,y=value))+geom_line(aes(x=time,y=value))+ geom_forecast(fprimas.arima,alpha=0.4)+ggtitle("ARIMA: Predicción Primas")
+
+
+fprimas.arima
+
+```
+
+
