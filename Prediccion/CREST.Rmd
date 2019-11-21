@@ -1,0 +1,389 @@
+---
+title: "CREST"
+author: "Armando Torner"
+date: "18/11/2019"
+output: pdf_document
+---
+
+## Cargamos librerías
+
+```{r}
+
+library(openxlsx)
+library(TSA)
+library(ggplot2)
+library(forecast)
+library(zoo)
+library(here)
+library(tsoutliers)
+library(lmtest)
+
+```
+
+## Cargamos los datos
+
+```{r}
+
+data <- read.xlsx(here("data/data.xlsx"), colNames = TRUE, detectDates = TRUE)
+
+```
+
+## Exploración de los datos
+
+A continuacion veremos si existe algun Na en la muestra. Para ello realizaremos la suma de todos los Na del data set, y veremos que en este caso concreto no hay ningun valor ausente
+
+```{r}
+
+sum(is.na(data)) 
+
+```
+
+## Graficamos las series temporales
+
+Se realizara a continuacion una serie temporal con la combinacion de ambas marcas, y veremos su evolucion a lo largo del tiempo.
+
+```{r}
+
+datosTemp <- ts(data[,c(3,4)], start = 1958, frequency = 52)
+
+```
+
+Mediante un autoplot, podremos relizar una comparacion de la evolucion temporal de las cuotas de mercado de crest y las de colgate.
+
+```{r}
+
+autoplot(datosTemp, facets = FALSE) +
+  ggtitle("Crest vs Colgate") +
+  xlab("Tiempo") +
+  ylab("Cuota de mercado")
+
+```
+
+Definimos una serie temporal por cada marca:
+
+```{r}
+
+colgate <- ts(data$Colgate, start = 1958, frequency = 52)
+crest <- ts(data$Crest, start = 1958, frequency = 52)
+
+```
+
+## Descomposición de las series
+
+Queremos verlo gráficamente ya que:
+Serie observada = Tendencia + Efecto estacional + Residuos
+
+```{r}
+
+descomposicion_colgate <- decompose(colgate)
+descomposicion_crest <- decompose(crest)
+
+plot(descomposicion_colgate, xlab='Años --- Colgate')
+plot(descomposicion_crest, xlab='Años --- Crest')
+
+```
+
+## Training y test
+
+Para poder realizar la practica de una manera adecuada, se debera divivr la muestra en train y test, ya que como se enunciaba en la tarea, el objetivo es predecir las 16 semanas del año 1963, por lo que ese sera nuestro test, mientras que el resto de la muestra sera la parte de entrenamiento.
+
+```{r}
+
+set.seed(123)
+colgate_training <-  window(colgate, start = 1958,end = c(1962, 52))
+crest_training <- window(crest, start = 1958, c(1962, 52))
+colgate_test <- window(colgate, start = 1963)
+crest_test <- window(crest, start = 1963)
+training_data <- data[1:260,]
+
+```
+
+## Modelo Arima: Colgate
+
+Como ya sabemos, sera necesaria la realizacion de un modelo ARIMA para cada serie temporal: Colgate y Crest.
+Por ello en primer lugar  se realizara el modelo arima para el la serie temporal de la marca Colgate, pero con la parte del training unicamente.
+Para ello sera necesario convertir las variables a tipo zoo, ya que deberemos trabajar con el paquete forecast
+
+```{r}
+
+zoo_colgate = as.zoo(colgate_training)
+
+```
+
+```{r}
+
+#Select number of observation to compare forecast
+comit = 4
+
+#Data Size
+num_obs = length(zoo_colgate)
+ocolgate <- window(zoo_colgate,start = index(zoo_colgate[1]),end = index(zoo_colgate[num_obs - comit]))
+View(ocolgate)
+ocolgate <- as.zoo(ocolgate)
+
+```
+
+
+```{r}
+
+zcolgate_log = log(zoo_colgate)
+df_newl <- data.frame(value = as.vector(zcolgate_log),
+                     time = time(zcolgate_log))
+ggplot(df_newl) + geom_point(aes(x = time, y = value)) + geom_line(aes(x = time, y = value)) + ylab("colgate") + ggtitle("ARIMA") + xlab("Años")
+
+```
+
+```{r}
+
+fit1 = auto.arima(ocolgate,lambda = 0)
+summary(fit1)
+
+#residual analysis
+ggtsdisplay(fit1$residuals)
+
+```
+```{r}
+
+#box-Ljung Test
+Box.test(fit1$residuals,lag = 4, fitdf = 3, type = "Lj")
+Box.test(fit1$residuals,lag = 8, fitdf = 3, type = "Lj")
+Box.test(fit1$residuals,lag = 12, fitdf = 3, type = "Lj")
+
+fventas.arima = forecast(fit1)
+
+```
+
+```{r}
+
+df_new <- data.frame(value = as.vector(colgate_training),
+                     time = time(colgate_training))
+
+ggplot(df_new) + geom_point(aes(x = time,y = value)) + geom_line(aes(x = time,y = value)) + geom_forecast(fventas.arima,alpha = 0.4) + ggtitle("ARIMA: Predicción ")
+
+
+fventas.arima
+
+```
+
+## Modelo Arima: Crest
+
+A continuación hacemos lo mismo para Crest
+
+```{r}
+
+zoo_crest = as.zoo(crest_training)
+
+```
+
+```{r}
+
+#Select number of observation to compare forecast
+comit = 4
+
+#Data Size
+num_obs = length(zoo_crest)
+ocrest <- window(zoo_crest,start = index(zoo_crest[1]),end = index(zoo_crest[num_obs - comit]))
+View(ocrest)
+ocrest <- as.zoo(ocrest)
+
+```
+
+
+```{r}
+
+zcrest_log = log(zoo_crest)
+df_newl <- data.frame(value = as.vector(zcrest_log),
+                     time = time(zcrest_log))
+ggplot(df_newl) + geom_point(aes(x = time, y = value)) + geom_line(aes(x = time, y = value)) + ylab("crest") + ggtitle("ARIMA") + xlab("Años")
+
+```
+
+```{r}
+
+fit1 = auto.arima(ocrest,lambda = 0)
+summary(fit1)
+
+#residual analysis
+ggtsdisplay(fit1$residuals)
+
+```
+```{r}
+
+#box-Ljung Test
+Box.test(fit1$residuals,lag = 4, fitdf = 3, type = "Lj")
+Box.test(fit1$residuals,lag = 8, fitdf = 3, type = "Lj")
+Box.test(fit1$residuals,lag = 12, fitdf = 3, type = "Lj")
+
+fventas.arima = forecast(fit1)
+
+```
+
+```{r}
+
+df_new <- data.frame(value = as.vector(crest_training),
+                     time = time(crest_training))
+
+ggplot(df_new) + geom_point(aes(x = time,y = value)) + geom_line(aes(x = time,y = value)) + geom_forecast(fventas.arima,alpha = 0.4) + ggtitle("ARIMA: Predicción ")
+
+
+fventas.arima
+
+```
+
+## Búsqueda de outliers
+
+Ahora vamos a buscar valores atípicos en las series temporales de Colgate y Crest
+
+```{r}
+
+(colgate_outlier <- tso(colgate_training, types = c("TC", "AO", "LS", "IO", "SLS")))
+plot(colgate_outlier)
+
+```
+
+```{r}
+
+(crest_outlier <- tso(crest_training, types = c("TC", "AO", "LS", "IO", "SLS")))
+plot(crest_outlier)
+summary(crest_outlier)
+
+```
+
+## Tratamiento de Outliers
+
+Ahora tratamos los outliers de cara a continuar haciendo otros modelos
+
+```{r}
+
+(fit_colgate_outlier <- auto.arima(colgate_outlier$yadj, seasonal = TRUE, stepwise = FALSE, approximation = FALSE))
+(fit_crest_outlier <- auto.arima(crest_outlier$yadj, seasonal = TRUE, stepwise = FALSE, approximation = FALSE))
+
+```
+
+```{r}
+
+checkresiduals(fit_colgate_outlier)
+checkresiduals(fit_crest_outlier)
+
+```
+
+```{r}
+
+fit_colgate_outlier %>% forecast(h = 16) %>% autoplot(include = 80)
+fit_crest_outlier %>% forecast(h = 16) %>% autoplot(include = 80)
+
+```
+
+```{r}
+
+(outliers_colgate_idx <- colgate_outlier$outliers$ind)
+(outliers_crest_idx <- crest_outlier$outliers$ind)
+
+```
+
+
+## Modelo de Intervención
+
+Con este modelo vamos a tratar de ver la importancia de la decisión de la ADA
+
+```{r}
+
+arimax_model_crest <- arimax(crest_training,
+                       order = c(0,1,1), #orden del ARIMA
+                       xtransf = data.frame(I1 = (1*(seq(crest_training) == outliers_crest_idx))),  #matriz con 1 donde haya outliers y 0 en lo demás            
+                       transfer = list(c(0,0)), #porque p=0
+                       method = 'ML')
+
+summary(arimax_model_crest)
+
+```
+  
+```{r}
+
+arimax_model_colgate <- arimax(colgate_training,
+                       order = c(1,0,1), #orden del ARIMA
+                       xtransf = data.frame(I1 = (1*(seq(crest_training) == outliers_colgate_idx))),  #matriz con 1 donde haya outliers y 0 en lo demás            
+                       transfer = list(c(0,0)), #porque p=0
+                       method = 'ML')
+
+summary(arimax_model_crest)
+
+```
+
+```{r}
+
+coeftest(arimax_model_crest)
+
+```
+
+```{r}
+
+arimax_model_colgate <- arimax(colgate_training,
+                       order = c(0,1,1), #orden del ARIMA
+                       xtransf = data.frame(I1 = (1*(seq(colgate_training) == outliers_colgate_idx))),  #matriz con 1 donde haya outliers y 0 en lo demás            
+                       transfer = list(c(0,0,0)), #porque p=0
+                       method = 'ML')
+
+summary(arimax_model_colgate)
+
+```
+  
+  
+```{r}
+
+coeftest(arimax_model_colgate)
+
+```
+  
+  
+```{r}
+
+checkresiduals(arimax_model_colgate)
+
+```
+  
+  
+```{r}
+
+arimax_model_crest <- arimax(crest_training,
+                       order = c(0,1,1), #orden del ARIMA
+                       xtransf = data.frame(I1 = (1*(seq(crest_training) == outliers_crest_idx))),  #matriz con 1 donde haya outliers y 0 en lo demás            
+                       transfer = list(c(0,0,0)), #porque p=0
+                       method = 'ML')
+
+summary(arimax_model_crest)
+
+```
+  
+```{r}
+
+coeftest(arimax_model_crest)
+
+```
+  
+```{r}
+
+checkresiduals(arimax_model_crest)
+
+```
+  
+## Función de Transferencia
+
+```{r}
+
+mod.transf.colgate <- arimax(x = colgate_training, order = c(1, 0, 1), 
+                                 xtransf = data.frame(crest_training), # Atípico aditivo
+                                 transfer = list(c(0,0)), # Primero el step y luego el pulse
+                                 method = "ML")
+mod.transf.colgate
+
+```
+
+```{r}
+
+coeftest(mod.transf.colgate)
+
+```
+
+
+
