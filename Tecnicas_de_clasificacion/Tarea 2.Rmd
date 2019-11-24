@@ -1,0 +1,168 @@
+---
+title: "Seguros"
+output: html_notebook
+---
+
+## Cargamos librerías
+
+```{r}
+
+library(readxl)
+library(tibble)
+library(caTools)
+
+```
+
+## Cargamos los datos
+
+```{r}
+
+datos<- read_xlsx("EPF2018_segurosalud.xlsx")
+
+```
+
+## Modificamos el dataset
+
+```{r}
+
+# Eliminamos variables que o son reelevantes para el estudio
+
+datos <- datos[,c(-1, -2,-6, -10, -12, -13)]
+
+```
+
+## Visualizamos brevemente los datos
+
+```{r}
+
+summary(datos)
+
+```
+
+## Transformamos los datos
+
+```{r}
+
+#Pasamos a tipo as.numeric los datos, porque estaban en tipo character.
+
+datos$Seguro_salud<- as.numeric(datos$Seguro_salud)
+
+datos$TAMAMU<- as.numeric(datos$TAMAMU)
+
+datos$NMIEMB <- as.numeric(datos$NMIEMB)
+
+datos$NUMOCUP <- as.numeric(datos$NUMOCUP)
+
+datos$TIPHOGAR3 <- as.numeric(datos$TIPHOGAR3)
+
+datos$EDADSP <- as.numeric(datos$EDADSP)
+
+datos$ESTUDREDSP<- as.numeric(datos$ESTUDREDSP)
+
+datos$REGTEN <- as.numeric(datos$REGTEN)
+
+datos$SUPERF <- as.numeric(datos$SUPERF)
+
+datos$INTERIN <- as.numeric(datos$INTERIN)
+
+
+summary(datos)
+
+```
+
+
+########### Modelo de regresión lineal ################
+
+```{r}
+
+#Comprobamos el tamaño del train (14.976 observaciones) y del test (6.418 observaciones)
+
+str(datos)
+
+size <- floor(nrow(datos) * 0.7)
+
+size2 <- floor(nrow(datos) * 0.3)
+
+```
+
+# Training y test
+
+```{r}
+
+set.seed(123)
+
+train_ind <- sample(seq_len(nrow(datos)), size = size)
+
+training.set <- datos[train_ind, ]
+
+test.set <- datos[-train_ind, ]
+
+```
+
+```{r}
+
+# Vemos la distribucion de ambas muestras y comprobamos que están balanceadas
+
+table(training.set$Seguro_salud)
+
+table(test.set$Seguro_salud)
+
+#Observamos que la muestra esta balanceada
+
+# 90% No y 10% Si, en el train y el test
+
+```
+
+# Procemos con el modelo
+
+```{r}
+
+modelo01 <- glm(Seguro_salud ~ ., family = 'binomial'(link = 'logit'), data = training.set)
+
+summary(modelo01)
+
+exp(coef(modelo01))  # Observamos los coeficientes
+
+
+
+```
+
+# Hacemos test Anova
+
+Se trata de un test de la varianza, contrastando medias
+
+```{r}
+#Test Anova
+
+anova(modelo01, test = "Chisq")
+
+```
+
+# Hacemos la predicción con los datos de test y creamos el cut point
+
+```{r}
+
+fitted.results <- predict(modelo01, newdata = test.set, type = 'response')
+
+fitted.results <- ifelse(fitted.results > 0.65, 1,0)
+
+```
+
+# Matriz de confusión
+
+```{r}
+
+logit.perf <- table(test.set$Seguro_salud, fitted.results, dnn = c("Actual", "Predicted"))
+logit.perf
+
+```
+
+# Calculamos el % de accuracy
+ 
+```{r}
+
+misClasificError <- mean(fitted.results != test.set$Seguro_salud)
+print(paste('El accuracy alcanzado es del',round(((1-misClasificError)*100),2), '%')) 
+
+```
+
