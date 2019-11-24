@@ -1,0 +1,384 @@
+---
+title: "Pajaros Retake"
+author: "Armando Torner"
+date: "24/11/2019"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+######## OBJETIVOS DEL RETAKE ########
+
+En este retake, el principal objetivo es complementar el trabajo anterior con un análisis cluster, que en la primera oportunidad, aunque se justificó el por qué, no se realizó. 
+
+
+######## INFORME ########
+
+Tenemos los datos de 56 pájaros machos de la especie de gorrion común (Passer domesticus), analizados tras una fuerte tormenta invernal. Estos datos recogen la supervivencia o no del ejemplar, así como datos de su fisionomia.
+Las variables que tenemos son las siguientes:
+
+-survive: si el pajaro ha sobrevivido a la tormenta (1=sí, 0=no)
+-length: longitud total del pájaro en milímetros, 
+-alar: extensión total de las alas en milímetros
+-weight: peso del gorrión en gramos
+-lbh: longitud del pico y cabeza, en milímetros
+-lhum: longitud del húmero, en pulgadas
+-lfem: longitud del fémur, en pulgadas
+-ltibio: longitud de la tibia, en pulgadas
+-wskull: ancho del cráneo, en pulgadas
+-lkeel: longitud de la quilla del esternon, en pulgadas
+
+Se quiere estudiar la relación entre la supervivencia y características físicas del pájaro, a fin de determinar si existe una eliminación selectiva de pájaros de la especie debido a sus características fisionómicas.
+
+En un primer tratamiento de los datos, lo que hago es poner todas las variables en las mismas unidades, pasando en este caso las pulgadas a milímetros. A continuación, estudio los valores en búsqueda de datos ausentes, viendo que el dtaset está completo y que no existen datos ausentes.
+
+Estudiando un poco más en profundidad los datos, vemos su distribución con los histogramas, donde llama la atención que en la muestra hay más pájaros que sobreviven (33) que mueren (23). Debido a la escasez de datos (apenas 56 registros) no entro a estudiar si las cualidades de la fisionomía de este tipo de pájaros siguen una distribución normal, aunque viendo la dispersión de los datos con los histogramas, cabría suponer que, como la mayoría de cualidades fisionómicas de los animales, sí que la siguen.
+
+A continuación, creo una variable Dummie para la no supervivencia, a fin de que a la hora de estudiar las correlaciones en las variables, aparezcan en el gráfico tanto la supervivencia como la no supervivencia, y así sea más fácil ver qué variables están correlacionadas y de qué forma con cada una de ellas.
+
+Entrando en la correlación de las variables, vemos que las que más se asocian a la supervivencia (y que a su vez se correlacionan de forma negativa con la no supervivencia) son la longitud del húmero y de fémur. Llama la atención que la longitud total del animal, perjudica a su supervivencia. Esta afirmación puede entrar en contradicción con las longitudes de húmero y fémur, ya que cabría suponer que cuanto mayores sean estos dos huesos, mayor será la longitud del animal, especialmente en el caso del húmero. De todas formas, como no sabemos con exactitud (porque no se nos facilita esa información) qué mide exactamente la variable "length" (si es la longitud con las alas abiertas o plegadas, si es desde la cabeza hasta la cola, si es la longitud de la altura del animal ...) no podemos sacar claras conclusiones más allá de que cuanto mayor sea esa variable, más perjudica al pájaro en su supervivencia.
+
+Cabría suponer que, como hablamos de longitudes de características físicas de animales, y estas suelen ser (salvo mutaciones) proporcionadas, debería existir una gran correlación entre ellas, incluso que existiese la presencia de multicolinealidad. Por poner un ejemplo, en los seres humanos, el tamaño del pie es normalmente el mismo que el tamaño del antebrazo, y podría darse el caso de que en este tipo de pájaros hubiese una similar correlación entre alguna de las variables.
+
+Vemos que existe una notable correlación entre algunas variables, como la extensión alar y el húmero, humero y fémur, o fémur y tibia. Son como digo, correlaciones que no sorprenden sino que son más bien esperadas, debido a que los animales suelen ser proporcionados físicamente. 
+
+Estudiando la presencia de multicolinealidad con el test de Barlett, vemos que esta existe. Haciendo un test de KMO determinamos que, después de haber estudiado las variables, puede llevarse a cabo un análisis de componentes principales.
+
+Este análisis determina que tomando cuatro componentes principales, explicaríamos cerca del 73% de la varianza. Por la escasez de tiempo para realizar la práctica y por la posibilidad de representar gráficamente los resultados, sólo estudio las dos primeras componentes, que explican un total del 53,6% de la varianza. Vemos que para la primera de las dimensiones las longitudes de fémur, húmero y longitud alar son lo que aporta más valor.Para la segunda dimensión serían la longitud total, la longitud de la cabeza y el pico y el ancho del cráneo. Y ya si se consideran las dos dimensiones a la vez, vemos que lo que más peso tiene son el húmero, el fémur y la tibia. Como fémur y tibia son huesos de las patas, cabe suponer que la longitud de las patas tiene un peso condicionante.
+
+Como las cargas factoriales son más fuertes (tienen mayor peso) en una de las componentes (factores) Se considera conveniente la solución rotada.
+
+Vemos cómo también es posible dividir las observaciones de los pájaros mediante un análisis cluster en dos grandes grupos. En cualquier caso, tenemos el problema de que no disponemos de muchos registros, por lo que no es un análisis excesivamente preciso
+
+
+····· CONCLUSIONES .....
+
+Debido al bajo número de observaciones de las que disponemos, no se pueden sacar conclusiones muy determinantes para la especie de gorrión común. Estudiando las correlaciones entre supervivencia y características físicas, vemos que la longitud total del animal está correlada de forma notable con su no supervivencia. A su vez, vemos que las longitudes de ciertos huesos (húmero y fémur fundamentalmente) tienen una correlación positiva con la supervivencia.
+Cabría preguntarse si, al suponer que los animales son proporcionados físicamente, prodría hacerse una reducción de variables mediante el análisis de componentes principales. Vemos que hay una gran explicación (más del 40% de la varianza) para una sóla dimensión, pero vemos también que entre la segunda, tercera y cuarta dimensión la ganancia se reduce a un 10% por cada dimensión que se añade, con el consiguiente prejuicio que ocasiona para poder representar los datos gráficamente.
+Cabe plantearse la posibilidad de hacer un análisis Cluster con los individuos de la muestra. Vemos que al realizarlo, nos resultan dos grupos de observaciones bastante bien definidos en función de las características físicas de los pájaros. Pero, posiblemente por la escasez de datos, las conclusiones que sacamos de este apartado no se pueden considerar de un rigor aplastante. Si hubiera más datos disponibles para el análisis, los resultados serían más concluyentes.
+
+
+
+######## CÓDIGO #######
+
+## Cargamos librerías necesarias
+
+```{r}
+
+library(foreign)
+library(here)
+library(readr)
+library(tidyverse)
+library(nortest)
+library(car)
+library(caret)
+library(skimr)
+library(corrplot)
+library(plyr)
+library(psych)
+library(factoextra)
+library(FactoMineR)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(Hmisc)
+library(PerformanceAnalytics)
+library(cluster)
+library(haven)
+
+```
+
+## Leemos los datos
+
+```{r}
+
+datos <- read.table("bumpus.txt", sep="",header=T )
+
+```
+
+## Cambiamos los nombres a las variables
+
+Esto lo hago para que sea más sencillo el trabajo con ellas
+
+```{r}
+
+datos <- rename(datos,"supervivencia"="survive","longitud_total"="length", "extension_alar"="alar", "peso"="weight", "longitud_pico_cabeza"="lbh", "longitud_humero"="lhum", "longitud_femur"="lfem", "longitud_tibia"="ltibio", "ancho_craneo"="wskull", "longitud_quilla_esternon"="lkeel")
+
+```
+
+## Estructura de los datos
+
+```{r}
+
+skim(datos)
+summary(datos)
+str(datos)
+
+```
+
+## Modificación de algunos datos
+
+Vemos que los datos no están todos expresados en las mismas medidas, por tanto, vamos a convertir los datos expresados en pulgadas a datos en milímetros
+Sabemos que 1 pulgada = 25,4 milímetros
+
+```{r}
+
+datos$longitud_humero <- (datos$longitud_humero * 25.4)
+datos$longitud_femur <- (datos$longitud_femur * 25.4)
+datos$longitud_tibia <- (datos$longitud_tibia * 25.4)
+datos$ancho_craneo <- (datos$ancho_craneo * 25.4)
+datos$longitud_quilla_esternon <- (datos$longitud_quilla_esternon * 25.4)
+
+```
+
+## Búsqueda de valores ausentes
+
+Vemos que tenemos observaciones para todas las variables
+
+```{r}
+
+summary(datos)
+
+```
+
+## Histogramas
+
+```{r}
+
+par(mfrow=c(2,5))
+hist(datos$supervivencia, main ="Supervivencia", ylab = "Frecuencia", xlab = NULL)
+hist(datos$longitud_total, main ="Long Total", ylab = NULL, xlab = NULL)
+hist(datos$extension_alar, main ="Long Alas", ylab = NULL, xlab = NULL)
+hist(datos$peso, main ="Peso", ylab = NULL, xlab = NULL)
+hist(datos$longitud_pico_cabeza, main ="Long Cabeza", ylab = NULL, xlab = NULL)
+hist(datos$longitud_humero, main ="Long Humero", ylab = "Frecuencia", xlab = NULL)
+hist(datos$longitud_femur, main ="Long Femur", ylab = NULL, xlab = NULL)
+hist(datos$longitud_tibia, main ="Long Tibia", ylab = NULL, xlab = NULL)
+hist(datos$ancho_craneo, main ="Ancho Craneo", ylab = NULL, xlab = NULL)
+hist(datos$longitud_quilla_esternon, main ="Long Quilla", ylab = NULL, xlab = NULL)
+
+```
+
+## Numero de supervivientes
+
+```{r}
+
+table(datos$supervivencia)
+
+```
+
+
+## Separamos los datos
+
+Ahora separamos los datos en dos grupos, los pajaros que han sobrevivido, y los que no, de cara a futuros estudios. Para ello creamos una variable para aquellos pajaros que no sobreviven
+
+```{r}
+
+datos$No_vive <- paste(datos$supervivencia)
+
+datos$No_vive <- revalue(datos$No_vive, c("0"=4))
+datos$No_vive <- revalue(datos$No_vive, c("1"=0))
+datos$No_vive <- revalue(datos$No_vive, c("4"=1))
+
+datos$No_vive <- as.numeric(datos$No_vive)
+
+
+```
+
+## Correlación
+
+```{r}
+
+corrplot(cor(datos))
+
+correlacion <- round(cor(datos), 1)
+corrplot(correlacion, method="number", type="upper")
+
+```
+
+## Estudio de multicolinealidad
+
+Procedemos con el Test de Bartlett. Como el p-value es inferior a 0.05 existe presencia de multicolinealidad
+
+```{r}
+
+bartlett.test(datos)
+
+```
+
+Ahora hacemos la prueba de KMO, para estudiar si merece la pena hacer un análisis factorial. Con un resultado de 0,5 siempre y cuando se estudien las variables, merece la pena hacer análisis factorial
+
+```{r}
+
+KMO(datos)
+
+```
+
+## Análisis de componentes principales
+
+Preparamos los datos para el estudio de componentes principales
+
+```{r}
+
+datos_acp <- select(datos, -supervivencia, -No_vive)
+
+```
+
+Procedemos con el análisis de componentes principales
+
+```{r}
+
+#En primer lugar extraemos los autovalores y observamos la varianza explicada.
+
+acp= PCA(datos_acp, graph=T) 
+view(acp)
+
+acp$eig # con paquete FacotMineR
+
+get_eig(acp) #con paquete factoextra
+
+####### Observamos que el porcentaje de varianza de los dos primeros componentes principales explica gran parte la totalidad de la varianza de las nuevas variables. Aunque según el grafico "de codo" deberíamos coger 4 componentes, por falta de tiempo para la ejecución de la práctica, y por posibilidad de ver los datos gráficamente en un plano, voy a estudiar sólo las dos primeras
+
+#Observamos gráficamnete la varianza explicada mediante screeplot
+
+fviz_eig(acp, addlabels=TRUE, hjust = -0.3)+
+  labs(title="Scree plot / Gráfico de sedimentación", x="Dimensiones", y="% Varianza explicada")
+theme_minimal()
+
+#Analizamos la relaciónn de las variables con los componentes principales.
+
+var=get_pca_var(acp) #factoextra
+var
+
+acp # resultados del ACP en FactoMineR
+
+#Gráfico por defecto de las variables en el espacio de dos componentes principales.
+
+fviz_pca_var(acp, col.var = "steelblue")
+
+#Modificamos los colores para visualizar mejor la contribución de la variable en el eje principal.
+
+fviz_pca_var(acp, col.var="contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel=TRUE) +
+  labs(title="Mapa de ejes principales")+
+  theme_minimal()
+
+fviz_pca_var(acp, col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+             repel = TRUE # Evitamos que se sobreponga el texto
+)
+# Ahora vemos la contribución de las variables a cada uno de los ejes principales
+
+## Vemos la influencia sobre el eje 1
+
+fviz_contrib(acp, choice="var", axes = 1 )+
+  labs(title = "Contribuciones a la Dim 1")
+
+## Vemos la influencia sobre el eje 2
+
+fviz_contrib(acp, choice="var", axes = 2 )+
+  labs(title = "Contribuciones a la Dim 2")
+
+## Vemos la influencia sobre ambos ejes
+
+fviz_contrib(acp, choice="var", axes = 1:2)+
+  labs(title = "Contribuciones a las dos dimensiones")
+
+```
+
+## Rotación de variables subyacentes
+
+```{r}
+
+# Utilizamos el método Varimax
+
+rotacion <- varimax(acp$var$cor)
+rotacion
+
+####### Se considera conveniente la solución rotada cuando casi todas las cargas factoriales sean más fuertes (mayor peso), hacia una de las componentes (factores), teniendo en cuenta que la otra tiene la suficiente proporción de variabilidad explicada
+
+```
+
+## Análisis Cluster
+
+Pasamos a continuación a clasificar los pájaros en función de sus características (variables numéricas).
+
+```{r}
+
+q.dist <- get_dist(datos_acp, method = "pearson") 
+
+```
+
+En el siguiente gráfico podemos apreciar que los colores azules muestran una aproximación mayor entre los pájaros a los que representa dicho espacio, mientras el color rojo representa una mayor distancia. Se puede observar que hay ambos colores en el gráfico, por lo que podría establecerse una clasificación en función a ello.
+
+```{r}
+
+fviz_dist(q.dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 7)
+
+```
+
+
+```{r}
+
+bumpus.cor <- cor(t(datos_acp), method = "pearson") 
+round(bumpus.cor[1:56, 1:56], 2)
+
+```
+
+
+```{r}
+
+dist.eucl <- daisy(datos_acp, metric = c("euclidean"),stand = FALSE)
+
+```
+
+
+```{r}
+
+corrplot(as.matrix(dist.eucl), is.corr = FALSE, method = "color", type="lower", diag=F, order="hclust", tl.cex=0.6, tl.col="blue")
+
+```
+
+Este segundo gráfico muestra lo mismo que el comentado anteriormente, pero sin doblar los casos. Los colores más oscuros muestran que hay una mayor distancia, mientras los más claros que se encuentran más cercanos. 
+
+
+```{r}
+
+plot(hclust(dist.eucl, method = "ward.D2"), cex=0.7, main="Dendrograma", ylab="Anchura", xlab="Análisis cluster aplicando Ward sobre matriz de distancias euclídeas")
+
+```
+
+A través del dendograma, se puede apreciar que existe una primera división clara en dos grupos, dejando un grupo más pequeño de casos a la izquierda, y uno mayor a la derecha.
+Para saber cuál es el número óptimo de clusters se debe observar el siguiente gráfico, en el cual, el mayor ángulo entre un punto y otro se produce en el segundo caso, por lo que el número que se escogerá para la división en clusters será de dos.
+
+```{r}
+
+fviz_nbclust(x = datos_acp, FUNcluster = kmeans, method = "wss", k.max = 15, 
+             diss = get_dist(datos_acp, method = "euclidean"), nstart = 50)
+
+```
+
+En el gráfico que aparece a continuación, se ve cómo quedan separados los dos cluster, y la asignación de cada pájaro a uno de los dos cluster.
+
+```{r}
+
+bumpus.eclust <- eclust(datos_acp, FUNcluster = "kmeans", stand=TRUE, hc_metric="euclidean", nstart=25, k = 2)
+ 
+```
+
+A pesar de que se puede observar una clara división, vemos como en el siguiente gráfico el análisis cluster realizado no es todo lo bueno que se podría llegar a esperar. Esto, se puede deber entre otras cosas al escaso número de registros, pero ya en el análisis exploratorio se empezó a intuir que la clasificación mediante el análisis cluster no sería excesivamente buena, sin embargo, se ha podido realizar la división en dos grupos claramente diferenciados.
+
+```{r}
+
+fviz_silhouette(bumpus.eclust)
+
+```
+
+
+```{r}
+
+bumpus.eclust$nbclust
+
+```
+
