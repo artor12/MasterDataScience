@@ -1,0 +1,336 @@
+---
+title: "Los coches del jefe II"
+author: "Armando Torner"
+date: "25 de noviembre de 2019"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Cargamos librerías
+
+```{r}
+
+library(memisc)
+library(haven)
+library(foreign)
+library(dplyr)
+library(factoextra)
+library(cluster)
+library(factoextra)
+require(clustertend)
+library("NbClust")
+library(FactoMineR)
+library(here)
+library(gridExtra)
+require(ggrepel)
+
+```
+
+## Establecemos una semilla
+
+```{r}
+
+set.seed(123)
+
+```
+
+## Cargamos los datos
+
+```{r}
+
+ruta <- here('Datos/tterreno.sav')
+
+coches <- read.spss(ruta, to.data.frame = T)
+
+```
+
+## Modificamos el dataset
+
+```{r}
+
+coches <- data.frame(coches[,-1], row.names = make.names(coches[,1], unique = T))
+
+coches_sin_escalar = read.spss(ruta, to.data.frame = T)
+coches_sin_escalar <- data.frame(coches_sin_escalar[,-1], row.names = make.names(coches_sin_escalar[,1], unique = T))
+
+# Sustituimos los Na por los valores de la media
+
+coches[116, 11] <- mean(coches[c(119, 120, 118, 121, 117), 11])
+coches[116, 11]
+coches[c(75:79), 11] <- mean(coches[c(63:74), 11])
+coches[19, 11] <- mean(coches[c(13:18, 19:22), 11])
+coches[c(105, 106), 12] <- 144
+coches[114, 12] <- 135
+
+
+coches_sin_escalar[116, 11] <- mean(coches_sin_escalar[c(119, 120, 118, 121, 117), 11])
+coches_sin_escalar[116, 11]
+coches_sin_escalar[c(75:79), 11] <- mean(coches_sin_escalar[c(63:74), 11])
+coches_sin_escalar[19, 11] <- mean(coches_sin_escalar[c(13:18, 19:22), 11])
+coches_sin_escalar[c(105, 106), 12] <- 144
+coches_sin_escalar[114, 12] <- 135
+
+coches_sin_escalar[c(7, 8), 3] <- mean(coches_sin_escalar[c(6, 9:12), 3])
+coches_sin_escalar[c(7, 8), 3]
+coches_sin_escalar[19, 4] <- mean(coches_sin_escalar[c(13:18, 20:22), 4])
+
+
+anyNA(coches_sin_escalar)
+
+perfomScaling <-  T
+if(perfomScaling){
+  for(i in names(coches)){
+    if(class(coches[,i ]) == 'integer' | class(coches[,i ]) == 'numeric'){
+      coches[,i ] = scale(coches[,i ])
+    }
+  }
+}
+
+#Creamos un nuevo dataframe, con las columnas buenas.
+columnasnum <- c('potencia','rpm','peso','consurb','velocida')
+cnum <- c('potencia','rpm','peso','consurb','velocida', 'cons120')
+cochesescalados <- subset(coches, select = columnasnum)
+cochesescalados2 <- subset(coches, select = cnum)
+
+coches_sub_sin_escalar = subset(coches_sin_escalar, select = columnasnum)
+sum(is.na(coches_sub_sin_escalar))
+
+coches_sub_sin_escalar[c(7, 8), 3] = 1850
+coches_sub_sin_escalar[19, 4] <- mean(coches_sub_sin_escalar[c(13:18, 20:22), 4])
+anyNA(coches_sub_sin_escalar)
+
+#Peso
+cochesescalados[c(7, 8), 3] <- mean(cochesescalados[c(6, 9:12), 3])
+cochesescalados[c(7, 8), 3]
+cochesescalados[19, 4] <- mean(cochesescalados[c(13:18, 20:22), 4])
+
+```
+
+## Análisis Cluster
+
+```{r}
+
+#Matriz de distancias
+#Obtenemos las distancias del anterior DF a través de Pearson
+
+qdist <- get_dist(cochesescalados, stand = T, method = 'pearson')
+qdist.manhattan <- get_dist(cochesescalados, stand = T, method = 'manhattan')
+qdist.mink <- get_dist(cochesescalados, stand = T, method = 'minkowski')
+
+```
+
+
+```{r}
+
+##Realizamos la representación gráfica.
+fviz_dist(qdist, lab_size = 5)
+
+```
+
+Como podemos observar en la siguiente representacion, buscamos que los colores tengan una distribución lo mas similar posible, pero desde los ejes X e Y no se puede observar con claridad las observaciones.
+Podemos deducir que hay agrupaciones en nuestos datos, debido a la diferencia de colores parece que generan varios grupos, dos azules en la parte superior izquierda y otro en la parte inferior derecha y los tres rojos a través de la diagonal con esto podemos deducir que las marcas están biendefinidas dentro de los grupos, por tanto podemos continuar con el análisis.
+
+Ahora fijándonos en el dendograma se puede apreciar como el algoritmo ha realizado una serie de agrupaciones, definiremos el parámetro K=5 para que realice cinco divisiones ya que queremos un numero más alto de dos grupos, debido a las exigencias del jefe.
+
+
+```{r}
+
+## Dendograma
+d <- dist(cochesescalados, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D2")
+plot(fit)
+
+```
+
+```{r}
+
+# Determinamos el número óptimo de clusters
+
+plot.j <- fviz_nbclust(cochesescalados, hcut, method = "wss") +
+  geom_vline(xintercept = 2, linetype = 2) +
+  geom_vline(xintercept = 3, linetype = 3) +
+  ggtitle("Número óptimo de clusters - jerárquico") +
+  labs(x = "Número k de clusters", y = "Suma total de cuadrados intra grupos") # Gráfica para determinar el número óptimo de clusters (3)
+plot.j
+
+```
+
+```{r}
+
+# Graficamos de forma más visible el dendograma
+
+plot(fit, cex = 0.6, hang = -1, main="Dendrograma - hclust")
+rect.hclust(fit, k=5, border = 2:4)
+
+```
+
+Gracias al dendograma que es un gráfico perfecto para una visualización rápida, se puede deducir que los coches están agrupados mas o menos en el mismo conjunto (en la misma caja digamos), esto significa que las observaciones de cada grupo son homogéneas, que es uno de los requisitos básicos del análisis cluster.
+
+De manera rápida e intuitiva podemos ver que las marcas de coches están todas más o menos agrupadas en el mismo conjunto, lo que nos lleva a pensar que las características son parecidas dentro de cada grupo.
+
+## K-MEANS CLUSTERING
+
+K-means es un algoritmo de clasificación no supervisada (clusterización) que agrupa objetos en k grupos basándose en sus características. El agrupamiento se realiza minimizando la suma de distancias entre cada objeto y el centroide de su grupo o cluster. Se suele usar la distancia cuadrática.
+
+Dentro del algoritmo depende de nosotros el número de clusteres a utilizar, como vimos en el informe anterior este es uno de los problemas más grandes ya que existe una disyuntiva entre la visión de negocio y el análisis estadístico, que tendremos que solventarlo nosotros como científicos de datos.
+Utilizaremos un rango de gráficos que nos muestran las diferentes combinaciones, estableceremos el límite en seis grupos ya que nos interesan desde el punto de vista de distancia geográfica con los coches:
+
+```{r}
+
+#**K-Means Clustering**
+k2 <- kmeans(cochesescalados, centers = 2, nstart = 25)
+k3 <- kmeans(cochesescalados, centers = 3, nstart = 25)
+k4 <- kmeans(cochesescalados, centers = 4, nstart = 25)
+k5 <- kmeans(cochesescalados, centers = 5, nstart = 25)
+k6 <- kmeans(cochesescalados, centers = 6, nstart = 25)
+k7 <- kmeans(cochesescalados, centers = 7, nstart = 25)
+k8 <- kmeans(cochesescalados, centers = 8, nstart = 25)
+k10 <- kmeans(cochesescalados, centers = 10, nstart = 25)
+
+p1 <- fviz_cluster(k2, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 2')
+p2 <- fviz_cluster(k3, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 3')
+p3 <- fviz_cluster(k4, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 4')
+p4 <- fviz_cluster(k5, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 5')
+p5 <- fviz_cluster(k6, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 6')
+p6 <- fviz_cluster(k7, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 7')
+p7 <- fviz_cluster(k8, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 8')
+p10 <- fviz_cluster(k10, geom = 'point', data = cochesescalados) + ggtitle('Kmeans 10')
+
+```
+
+```{r}
+
+#Vemos gráficamnete la distribución según el número de clusters
+
+grid.arrange( p2, p3, p4, p5, p10, nrow = 2)
+
+grid.arrange( p2, p3, p4, nrow = 1)
+
+grid.arrange(  p5, p10, nrow = 1)
+
+```
+Estadísticamente hablando se puede observar que de dos a cuatro grupos la división es perfecta pero desde el punto de vista de las exigencias del jefe y pensando en la distribución de los garajes realizaremos seis grupos.
+
+
+
+```{r}
+
+set.seed(123)
+caracteristicas_kmeans <- kmeans(cochesescalados, 6)
+caracteristicas_kmeans$centers
+
+```
+
+Esta salida nos muestra los siguientes resultados: 
+
+- Potencia:Los clusteres que más potencia tienen serán el 3 y 6, y los de menores  serán el 2 y 4.
+- RPM: El de mayor revoluciones por minuto es el 4 y el 5 y los menores el 1 y 2.
+- Peso: Los de mayor peso son el 6 y el 1 y los menores el 4 y el 5.
+- Consumo urbano: Los que mayor consumo tienen son los del 3 y el 6 y los menores los del 2 y el 4.
+- Velocidad: Y los más rápidos son los del grupo 3 y 6 y los más lentos son los del 4 y 2.
+
+Por tanto según este criterio podremos deducir los garajes donde debemos de introducir a cada uno de los coches, en función de las variables seleccionadas.
+
+Los grupos 3 y 6 son los coches más potenes, los que mas consumen y los que más velocidad pueden conseguir, por tanto podemos deducir que son coches deportivos por que no tienen mucho peso pero tienen mucha velocidad y mucha potencia por tanto los mandaremos en ferry a Corcega y a los alrededores .
+
+## K-MEDIODS (PAM)
+
+El algoritmo k- medoids es un algoritmo de agrupamiento relacionado con el algoritmo k- significa y el algoritmo de cambio medoid. Los algoritmos k- significa y k -medoids son particionales (dividiendo el conjunto de datos en grupos). K- significa intentar minimizar el error cuadrado total, mientras que k -medoids minimiza la suma de las diferencias entre los puntos etiquetados para estar en un grupo y un punto designado como el centro de ese grupo. En contraste con el algoritmo k- significa, k -medoids elige puntos de datos como centros (medoides o ejemplares).
+Un medoide de un conjunto de datos finitos es un punto de datos de este conjunto, cuya disimilitud promedio con todos los puntos de datos es mínima, es decir, es el punto más centralmente ubicado en el conjunto.
+
+```{r}
+
+set.seed(123)
+pam_clusters <- pam(x = cochesescalados, k = 6, metric = "manhattan")
+
+```
+
+```{r}
+
+pam_clusters$medoids
+
+```
+
+La tabla nos muestra en el índice los diferentes modelos de coche(SUZUKI.9, TATA.1, OPEL.6, ...) para cada observación por cada variable (potencia, revoluciones por minuto...) donde cabe esperar que cada grupo tendrá unas características similares.
+
+Mostraremos los diferentes clusteres en forma de elipses, y mostrando sus medioides:
+
+```{r}
+
+medoids <- prcomp(cochesescalados)$x
+
+# Se seleccionan únicamente las proyecciones de las observaciones que son medoids
+medoids <- medoids[rownames(pam_clusters$medoids), c("PC1", "PC2")]
+medoids <- as.data.frame(medoids)
+
+# Se emplean los mismos nombres que en el objeto ggplot
+colnames(medoids) <- c("x", "y")
+
+pam_clusters$medoids
+
+
+
+fviz_cluster(object = pam_clusters, data = coches, ellipse.type = "t",
+             repel = TRUE) +
+  theme_bw() 
+ 
+```
+
+```{r}
+
+#Restalamos las observaciones que actúan como mediodes
+fviz_cluster(object = pam_clusters, data = coches, ellipse.type = "t",
+             repel = TRUE) +
+  geom_point(data = medoids, color = "firebrick", size = 2) +
+  labs(title = "Resultados clustering PAM") +
+  theme(legend.position = "none")
+
+```
+
+Como hemos afirmado anteriormente el algoritmo de K-medioids, PAM, es una alternativa robusta a k-means (ya que tiene una mejora respecto al k-means, que es el problema con su alta sensibilidad respecto a los outliers) para dividir un conjunto de datos en grupos de observación, como en el método k-medoids, cada grupo está representado por un objeto seleccionado dentro del grupo. Los objetos seleccionados se denominan medoides y corresponden a los puntos ubicados más centralmente dentro del grupo, se presupone que las observaciones entre los grupos son muy parecidas.
+
+
+
+## Conclusiones
+
+Teniendo en cuenta los criterios de negocio y estadística, el jefe nos pedía 10 grupos y los análisis estadísticos nos indicaban que el número óptimo era 4, teniendo en cuenta ambos acabamos eligiendo 6. 
+Se ha realizado un análisis cluster para agrupar los coches en función de sus características semejates.
+
+Finalmente nos hemos quedado con los resultdos que nos muestra la siguiente gráfica.
+
+```{r}
+
+coches.eclust = eclust(cochesescalados, FUNcluster = "pam", stand = TRUE,
+                       hc_metric = "euclidean", k = 6)
+
+```
+
+Utilizando la distancia euclídea y utilizando la información de las variables con las que se ha generado el modelo, y teniendo sobre todo en cuenta la situación geográfica de los diversos garajes hemos decidido unificar seis clusteres en cinco.
+
+Por tanto, con la información que nos aportan las cinco variables que hemos elegido, decidimos realizar tres agrupaciones de los diferentes coches que mandaremos a los diferentes garajes de nuestros jefes, pero primero vamos a definir las características de los diferentes clústeres que hemos realizado.
+
+
+Grupo 1: Aquí se encuentran los coches de poca potencia y con un consumo urbano bajo. Son todos practicamente de la marca Suzuki menos un Toyota, un lada y un Asia motors. Sin embargo este grupo presenta un RPM muy alto.
+Grupo 2: Estos tambien son coches con potencia baja, pero a su vez tambien tienen poco peso y consumen poco.
+Estos presentan tambien una velocidad baja. Este grupo incluye coches de diferentes marcas como: Tata,
+UAZ, Asia Motors, Suzuki, Ssangyong y Mitsubishi.
+Grupo 3: Esos son los coches que possen un cnsumo más alto al igual que su potencia y mas RPM.
+Se incluyen Mitsubishi, Mercedes, Jeep, Land Rover y Chevrolet entre otros.
+Grupo 4: Sus revoluciones por minuto a la vez que su velocidad son muy altas, pero su potencia y peso son bajos.
+Este grupo incluye Nissan, Ford, Opel, Jeep, Kia, Opel, Suzuki, Kia y Toyota
+Grupo 5: Todas las caracteristicas son bajas excepto el peso que es alto. Este grupo incluye coches de
+prácticamente todas las marcas. Es el grupo que peor diferenciado está.
+Grupo 6: Estos son los más pesados e incluyen marcas como Mercedes, Opel, Ford, Nissan y Jeep.
+
+Con todo esto podemos concluir la siguiente división de los coches en los diferentes garajes, los clusteres 3, 4 y 6 los colocaremos en la zona de Niza y las zonas costera debido a que son los que más consumen y por temas de ahorro de costes los mandaremos allí en ferry.
+Los grupos uno y dos debido a que son coches con poco peso y consumo, podran desplazarse con un coste reducido hasta la zona de Suiza, pese a que sobren 4 (ya que los garajes como máximo son 15 coches) los meteremos en el garaje de París.
+El grupo 5 que es el más numeroso y grupo más heterogéneo, desde un punto de vista de negocio y nuestras limitaciones 16 coches los meteremos en París (teniendo en cuenta los cuatro colocados anteriormente), podriamos incluir diez coches en cada garaje de dicha ubicación, y otros diez sobrantes a la zona de la Rochelle que solo tiene un garaje disponible y los diez que quedan a Andorra, los coches que más consumen irán a la zona de Andorra y los siguientes a la zona de La Rochelle y asi sucesivamente.
+
